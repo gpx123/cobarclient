@@ -25,6 +25,7 @@ import com.alibaba.cobar.client.merger.IMerger;
  */
 public class RoutingResult {
     private List<String>  resourceIdentities;
+    private Object fragment;
     private IMerger<?, ?> merger;
 
     public List<String> getResourceIdentities() {
@@ -43,4 +44,11 @@ public class RoutingResult {
         return merger;
     }
 
+    public Object getFragment() {
+        return fragment;
+    }
+
+    public void setFragment(Object fragment) {
+        this.fragment = fragment;
+    }
 }

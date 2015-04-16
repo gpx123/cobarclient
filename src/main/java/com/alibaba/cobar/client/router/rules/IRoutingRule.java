@@ -40,5 +40,7 @@ public interface IRoutingRule<F, T> {
      * 
      * @return
      */
+
+    Object fragment(F routingFact);
     T action();
 }

@@ -37,6 +37,10 @@ public class IBatisSqlActionRule extends AbstractIBatisOrientedRule {
         return StringUtils.equals(getTypePattern(), routeFact.getAction());
     }
 
+    public Object fragment(IBatisRoutingFact routingFact) {
+        return null;
+    }
+
     @Override
     public String toString() {
         return "IBatisSqlActionRule [getAction()=" + getAction() + ", getTypePattern()="

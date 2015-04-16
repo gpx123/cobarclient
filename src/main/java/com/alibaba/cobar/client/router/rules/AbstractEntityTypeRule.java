@@ -41,6 +41,14 @@ public abstract class AbstractEntityTypeRule<F, T> implements IRoutingRule<F, T>
         this.action = action;
     }
 
+    public AbstractEntityTypeRule(String pattern, String action , boolean isFragment) {
+        Validate.notEmpty(StringUtils.trim(pattern));
+        Validate.notEmpty(StringUtils.trim(action));
+
+        this.typePatten = pattern;
+        this.action = action;
+    }
+
     public void setTypePattern(String leftExpression) {
         this.typePatten = leftExpression;
     }

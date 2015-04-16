@@ -13,34 +13,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- package com.alibaba.cobar.client.router.rules.ibatis;
+package com.alibaba.cobar.client.router.rules.ibatis;
+
+import com.alibaba.cobar.client.router.rules.AbstractEntityAttributeRule;
+import com.alibaba.cobar.client.router.rules.IRoutingRule;
+import com.alibaba.cobar.client.router.support.IBatisRoutingFact;
+import com.alibaba.cobar.client.support.utils.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.Validate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.Validate;
-
-import com.alibaba.cobar.client.router.rules.AbstractEntityAttributeRule;
-import com.alibaba.cobar.client.router.rules.IRoutingRule;
-import com.alibaba.cobar.client.router.support.IBatisRoutingFact;
-import com.alibaba.cobar.client.support.utils.CollectionUtils;
 /**
  * super class for all of the {@link IRoutingRule} implementations that is oriented to be used to do routing with iBatis sqlmap.
- * 
+ *
  * @author fujohnwang
- * @since  1.0
+ * @since 1.0
  */
 public abstract class AbstractIBatisOrientedRule extends AbstractEntityAttributeRule<IBatisRoutingFact, List<String>> {
     public static final String DEFAULT_DATASOURCE_IDENTITY_SEPARATOR = ",";
-    
+
     private Map<String, Object> functionMap = new HashMap<String, Object>();
 
     private String actionPatternSeparator = DEFAULT_DATASOURCE_IDENTITY_SEPARATOR;
-    
-    private List<String>       dataSourceIds                         = new ArrayList<String>();
+
+    private List<String> dataSourceIds = new ArrayList<String>();
 
     public AbstractIBatisOrientedRule(String pattern, String action) {
         super(pattern, action);
@@ -50,9 +50,12 @@ public abstract class AbstractIBatisOrientedRule extends AbstractEntityAttribute
         super(pattern, action, attributePattern);
     }
 
+    public AbstractIBatisOrientedRule(String pattern, String action, String attributePattern, String fragmentPattern) {
+        super(pattern, action, attributePattern, fragmentPattern);
+    }
+
     public synchronized List<String> action() {
-        if(CollectionUtils.isEmpty(dataSourceIds))
-        {
+        if (CollectionUtils.isEmpty(dataSourceIds)) {
             List<String> ids = new ArrayList<String>();
             for (String id : StringUtils.split(getAction(), getActionPatternSeparator())) {
                 ids.add(StringUtils.trimToEmpty(id));

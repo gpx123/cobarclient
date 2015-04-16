@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- package com.alibaba.cobar.client.router.config.vo;
+package com.alibaba.cobar.client.router.config.vo;
 
 public class InternalRule {
 
@@ -21,6 +21,7 @@ public class InternalRule {
     private String sqlmap;
     private String shardingExpression;
     private String shards;
+    private String fragmentExpression;
     /**
      * this field is not used for now, because it's still in leverage whether
      * it's proper to bind merging information into a routing concern.
@@ -61,7 +62,7 @@ public class InternalRule {
 
     /**
      * set the bean name of merger to use.
-     * 
+     *
      * @param merger, the bean name in the container.
      */
     public void setMerger(String merger) {
@@ -84,6 +85,7 @@ public class InternalRule {
                 + ((shardingExpression == null) ? 0 : shardingExpression.hashCode());
         result = prime * result + ((shards == null) ? 0 : shards.hashCode());
         result = prime * result + ((sqlmap == null) ? 0 : sqlmap.hashCode());
+        result = prime * result + ((fragmentExpression == null) ? 0 : fragmentExpression.hashCode());
         return result;
     }
 
@@ -106,6 +108,11 @@ public class InternalRule {
                 return false;
         } else if (!shardingExpression.equals(other.shardingExpression))
             return false;
+        if (fragmentExpression == null) {
+            if (other.fragmentExpression != null)
+                return false;
+        } else if (!fragmentExpression.equals(other.fragmentExpression))
+            return false;
         if (shards == null) {
             if (other.shards != null)
                 return false;
@@ -122,6 +129,14 @@ public class InternalRule {
     @Override
     public String toString() {
         return "InternalRule [namespace=" + namespace + ", shardingExpression="
-                + shardingExpression + ", shards=" + shards + ", sqlmap=" + sqlmap + "]";
+                + shardingExpression + ",fragmentExpression=" + fragmentExpression + ", shards=" + shards + ", sqlmap=" + sqlmap + "]";
+    }
+
+    public String getFragmentExpression() {
+        return fragmentExpression;
+    }
+
+    public void setFragmentExpression(String fragmentExpression) {
+        this.fragmentExpression = fragmentExpression;
     }
 }

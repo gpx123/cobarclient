@@ -13,20 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- package com.alibaba.cobar.client.router;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+package com.alibaba.cobar.client.router;
 
 import com.alibaba.cobar.client.router.rules.IRoutingRule;
 import com.alibaba.cobar.client.router.support.IBatisRoutingFact;
 import com.alibaba.cobar.client.router.support.RoutingResult;
 import com.alibaba.cobar.client.support.LRUMap;
 import com.alibaba.cobar.client.support.utils.CollectionUtils;
+import org.mvel2.MVEL;
+import org.mvel2.integration.VariableResolverFactory;
+import org.mvel2.integration.impl.MapVariableResolverFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.*;
 
 /**
  * CobarInternalRouter is the default router that will be used in cobar client,
@@ -52,16 +52,16 @@ import com.alibaba.cobar.client.support.utils.CollectionUtils;
  * To enhance the rule matching performance, we add a LRU cache, you can decide
  * whether to use this cache by set the {@link #enableCache} property's value to
  * true or false.<br>
- * 
+ *
  * @author fujohnwang
  * @since 1.0
  */
 public class CobarClientInternalRouter implements ICobarRouter<IBatisRoutingFact> {
 
-    private transient final Logger logger      = LoggerFactory.getLogger(CobarClientInternalRouter.class);
+    private transient final Logger logger = LoggerFactory.getLogger(CobarClientInternalRouter.class);
 
-    private LRUMap                 localCache;
-    private boolean                enableCache = false;
+    private LRUMap localCache;
+    private boolean enableCache = false;
 
     public CobarClientInternalRouter(boolean enableCache) {
         this(enableCache, 10000);
@@ -78,7 +78,7 @@ public class CobarClientInternalRouter implements ICobarRouter<IBatisRoutingFact
         }
     }
 
-    private List<Set<IRoutingRule<IBatisRoutingFact, List<String>>>> ruleSequences          = new ArrayList<Set<IRoutingRule<IBatisRoutingFact, List<String>>>>();
+    private List<Set<IRoutingRule<IBatisRoutingFact, List<String>>>> ruleSequences = new ArrayList<Set<IRoutingRule<IBatisRoutingFact, List<String>>>>();
 
     public RoutingResult doRoute(IBatisRoutingFact routingFact) throws RoutingException {
         if (enableCache) {
@@ -99,6 +99,7 @@ public class CobarClientInternalRouter implements ICobarRouter<IBatisRoutingFact
             for (Set<IRoutingRule<IBatisRoutingFact, List<String>>> ruleSet : getRuleSequences()) {
                 ruleToUse = searchMatchedRuleAgainst(ruleSet, routingFact);
                 if (ruleToUse != null) {
+                    result.setFragment(ruleToUse.fragment(routingFact));
                     break;
                 }
             }
@@ -121,8 +122,8 @@ public class CobarClientInternalRouter implements ICobarRouter<IBatisRoutingFact
     }
 
     private IRoutingRule<IBatisRoutingFact, List<String>> searchMatchedRuleAgainst(
-                                                                                   Set<IRoutingRule<IBatisRoutingFact, List<String>>> rules,
-                                                                                   IBatisRoutingFact routingFact) {
+            Set<IRoutingRule<IBatisRoutingFact, List<String>>> rules,
+            IBatisRoutingFact routingFact) {
         if (CollectionUtils.isEmpty(rules)) {
             return null;
         }
@@ -138,10 +139,10 @@ public class CobarClientInternalRouter implements ICobarRouter<IBatisRoutingFact
         return localCache;
     }
 
-    public synchronized void clearLocalCache(){
+    public synchronized void clearLocalCache() {
         this.localCache.clear();
     }
-    
+
     public boolean isEnableCache() {
         return enableCache;
     }

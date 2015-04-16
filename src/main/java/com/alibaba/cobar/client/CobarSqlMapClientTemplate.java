@@ -38,6 +38,8 @@ import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
 
+import com.alibaba.cobar.client.domain.FragmentPO;
+import com.alibaba.cobar.client.router.support.RoutingResult;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
@@ -851,8 +853,11 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
         SortedMap<String, DataSource> resultMap = new TreeMap<String, DataSource>();
 
         if (getRouter() != null && getCobarDataSourceService() != null) {
-            List<String> dsSet = getRouter().doRoute(
-                    new IBatisRoutingFact(statementName, parameterObject)).getResourceIdentities();
+            RoutingResult routing = getRouter().doRoute(new IBatisRoutingFact(statementName, parameterObject));
+            List<String> dsSet = routing.getResourceIdentities();
+            if(parameterObject instanceof FragmentPO){
+                ((FragmentPO) parameterObject).setFragment(routing.getFragment());
+            }
             if (CollectionUtils.isNotEmpty(dsSet)) {
                 Collections.sort(dsSet);
                 for (String dsName : dsSet) {
@@ -1190,5 +1195,4 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
 
         return executor;
     }
-
 }

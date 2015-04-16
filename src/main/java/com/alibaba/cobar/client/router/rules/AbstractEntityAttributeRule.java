@@ -28,6 +28,7 @@ import org.apache.commons.lang.Validate;
  */
 public abstract class AbstractEntityAttributeRule<F, T> extends AbstractEntityTypeRule<F, T> {
     private String attributePattern;
+    private String fragmentPattern;
     
     public AbstractEntityAttributeRule(String typePattern, String action)
     {
@@ -42,6 +43,15 @@ public abstract class AbstractEntityAttributeRule<F, T> extends AbstractEntityTy
         this.attributePattern = attributePattern;
     }
 
+    public AbstractEntityAttributeRule(String typePattern, String action, String attributePattern , String fragmentPattern)
+    {
+        super(typePattern, action);
+        Validate.notEmpty(StringUtils.trimToEmpty(attributePattern));
+
+        this.attributePattern = attributePattern;
+        this.fragmentPattern = fragmentPattern;
+    }
+
     public String getAttributePattern() {
         return attributePattern;
     }
@@ -49,6 +59,14 @@ public abstract class AbstractEntityAttributeRule<F, T> extends AbstractEntityTy
     public void setAttributePattern(String attributePattern) {
         Validate.notEmpty(StringUtils.trimToEmpty(attributePattern));
         this.attributePattern = attributePattern;
+    }
+
+    public String getFragmentPattern() {
+        return fragmentPattern;
+    }
+
+    public void setFragmentPattern(String fragmentPattern) {
+        this.fragmentPattern = fragmentPattern;
     }
 
     @Override

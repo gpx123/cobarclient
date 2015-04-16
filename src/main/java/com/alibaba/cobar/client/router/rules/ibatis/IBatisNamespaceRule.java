@@ -37,6 +37,10 @@ public class IBatisNamespaceRule extends AbstractIBatisOrientedRule {
         return StringUtils.equals(namespace, getTypePattern());
     }
 
+    public Object fragment(IBatisRoutingFact routingFact) {
+        return null;
+    }
+
     @Override
     public String toString() {
         return "IBatisNamespaceRule [getAction()=" + getAction() + ", getTypePattern()="

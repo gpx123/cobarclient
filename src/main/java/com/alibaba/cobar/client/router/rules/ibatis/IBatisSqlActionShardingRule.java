@@ -37,6 +37,10 @@ public class IBatisSqlActionShardingRule extends AbstractIBatisOrientedRule {
         super(pattern, action, attributePattern);
     }
 
+    public IBatisSqlActionShardingRule(String pattern, String action, String attributePattern , String fragmentExpression) {
+        super(pattern, action, attributePattern,fragmentExpression);
+    }
+
     public boolean isDefinedAt(IBatisRoutingFact routingFact) {
         Validate.notNull(routingFact);
         boolean matches = StringUtils.equals(getTypePattern(), routingFact.getAction());
@@ -58,6 +62,26 @@ public class IBatisSqlActionShardingRule extends AbstractIBatisOrientedRule {
         }
 
         return false;
+    }
+
+    public Object fragment(IBatisRoutingFact routingFact) {
+        if(StringUtils.isEmpty(this.getFragmentPattern())){
+            return null;
+        }
+        Validate.notNull(routingFact);
+        try {
+            Map<String, Object> vrs = new HashMap<String, Object>();
+            vrs.putAll(getFunctionMap());
+            vrs.put("$ROOT", routingFact.getArgument()); // add top object reference for expression
+            VariableResolverFactory vrfactory = new MapVariableResolverFactory(vrs);
+            return MVEL.eval(getAttributePattern(), routingFact.getArgument(), vrfactory);
+        } catch (Throwable t) {
+            logger
+                    .info(
+                            "failed to evaluate attribute expression:'{}' with context object:'{}'\n{}",
+                            new Object[]{getAttributePattern(), routingFact.getArgument(), t});
+        }
+        return null;
     }
 
     @Override
