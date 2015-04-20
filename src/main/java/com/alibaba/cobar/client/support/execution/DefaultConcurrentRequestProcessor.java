@@ -26,6 +26,9 @@ import java.util.concurrent.Future;
 
 import javax.sql.DataSource;
 
+import com.alibaba.cobar.client.seconder.ICobarSeconder;
+import com.sun.xml.internal.ws.client.SenderException;
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,11 +72,22 @@ public class DefaultConcurrentRequestProcessor implements IConcurrentRequestProc
                 ConcurrentRequest request = rdepo.getOriginalRequest();
                 final SqlMapClientCallback action = request.getAction();
                 final Connection connection = rdepo.getConnectionToUse();
+                final ICobarSeconder cobarSeconder = request.getCobarSeconder();
+                final String tableName = request.getTableName();
 
                 futures.add(request.getExecutor().submit(new Callable<Object>() {
                     public Object call() throws Exception {
                         try {
-                            return executeWith(connection, action);
+                            Object res = executeWith(connection, action);
+                            if(cobarSeconder != null){
+                                try {
+                                    cobarSeconder.store(tableName,res);
+                                }catch (SenderException e){
+                                    logger.error("cobarSeconder.store have some errors=>",e);
+                                }
+
+                            }
+                            return res;
                         } finally {
                             latch.countDown();
                         }

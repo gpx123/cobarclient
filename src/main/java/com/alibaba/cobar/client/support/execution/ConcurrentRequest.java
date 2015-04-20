@@ -19,6 +19,7 @@ import java.util.concurrent.ExecutorService;
 
 import javax.sql.DataSource;
 
+import com.alibaba.cobar.client.seconder.ICobarSeconder;
 import org.springframework.orm.ibatis.SqlMapClientCallback;
 /**
  * {@link #action} will be executed on {@link #dataSource} with {@link #executor} asynchronously.<br>
@@ -30,6 +31,8 @@ public class ConcurrentRequest {
     private SqlMapClientCallback action;
     private DataSource           dataSource;
     private ExecutorService      executor;
+    private ICobarSeconder cobarSeconder;
+    private String tableName;
 
     public SqlMapClientCallback getAction() {
         return action;
@@ -55,4 +58,19 @@ public class ConcurrentRequest {
         this.executor = executor;
     }
 
+    public ICobarSeconder getCobarSeconder() {
+        return cobarSeconder;
+    }
+
+    public void setCobarSeconder(ICobarSeconder cobarSeconder) {
+        this.cobarSeconder = cobarSeconder;
+    }
+
+    public String getTableName() {
+        return tableName;
+    }
+
+    public void setTableName(String tableName) {
+        this.tableName = tableName;
+    }
 }

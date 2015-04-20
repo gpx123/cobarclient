@@ -13,33 +13,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- package com.alibaba.cobar.client;
+package com.alibaba.cobar.client;
 
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
-import javax.sql.DataSource;
-
+import com.alibaba.cobar.client.audit.ISqlAuditor;
+import com.alibaba.cobar.client.datasources.CobarDataSourceDescriptor;
+import com.alibaba.cobar.client.datasources.ICobarDataSourceService;
 import com.alibaba.cobar.client.domain.FragmentPO;
+import com.alibaba.cobar.client.exception.UncategorizedCobarClientException;
+import com.alibaba.cobar.client.merger.IMerger;
+import com.alibaba.cobar.client.router.ICobarRouter;
+import com.alibaba.cobar.client.router.support.IBatisRoutingFact;
 import com.alibaba.cobar.client.router.support.RoutingResult;
+import com.alibaba.cobar.client.seconder.ICobarSeconder;
+import com.alibaba.cobar.client.seconder.SeconderException;
+import com.alibaba.cobar.client.support.execution.ConcurrentRequest;
+import com.alibaba.cobar.client.support.execution.DefaultConcurrentRequestProcessor;
+import com.alibaba.cobar.client.support.execution.IConcurrentRequestProcessor;
+import com.alibaba.cobar.client.support.utils.CollectionUtils;
+import com.alibaba.cobar.client.support.utils.MapUtils;
+import com.alibaba.cobar.client.support.utils.Predicate;
+import com.alibaba.cobar.client.support.vo.BatchInsertTask;
+import com.alibaba.cobar.client.support.vo.CobarMRBase;
+import com.alibaba.cobar.client.transaction.MultipleDataSourcesTransactionManager;
+import com.alibaba.cobar.client.util.StringSelfUtil;
+import com.ibatis.common.util.PaginatedList;
+import com.ibatis.sqlmap.client.SqlMapExecutor;
+import com.ibatis.sqlmap.client.SqlMapSession;
+import com.ibatis.sqlmap.client.event.RowHandler;
+import com.ibatis.sqlmap.engine.impl.SqlMapClientImpl;
+import com.ibatis.sqlmap.engine.mapping.sql.Sql;
+import com.ibatis.sqlmap.engine.mapping.sql.stat.StaticSql;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
@@ -56,29 +59,11 @@ import org.springframework.jdbc.support.SQLErrorCodeSQLExceptionTranslator;
 import org.springframework.orm.ibatis.SqlMapClientCallback;
 import org.springframework.orm.ibatis.SqlMapClientTemplate;
 
-import com.alibaba.cobar.client.audit.ISqlAuditor;
-import com.alibaba.cobar.client.datasources.CobarDataSourceDescriptor;
-import com.alibaba.cobar.client.datasources.ICobarDataSourceService;
-import com.alibaba.cobar.client.exception.UncategorizedCobarClientException;
-import com.alibaba.cobar.client.merger.IMerger;
-import com.alibaba.cobar.client.router.ICobarRouter;
-import com.alibaba.cobar.client.router.support.IBatisRoutingFact;
-import com.alibaba.cobar.client.support.execution.ConcurrentRequest;
-import com.alibaba.cobar.client.support.execution.DefaultConcurrentRequestProcessor;
-import com.alibaba.cobar.client.support.execution.IConcurrentRequestProcessor;
-import com.alibaba.cobar.client.support.utils.CollectionUtils;
-import com.alibaba.cobar.client.support.utils.MapUtils;
-import com.alibaba.cobar.client.support.utils.Predicate;
-import com.alibaba.cobar.client.support.vo.BatchInsertTask;
-import com.alibaba.cobar.client.support.vo.CobarMRBase;
-import com.alibaba.cobar.client.transaction.MultipleDataSourcesTransactionManager;
-import com.ibatis.common.util.PaginatedList;
-import com.ibatis.sqlmap.client.SqlMapExecutor;
-import com.ibatis.sqlmap.client.SqlMapSession;
-import com.ibatis.sqlmap.client.event.RowHandler;
-import com.ibatis.sqlmap.engine.impl.SqlMapClientImpl;
-import com.ibatis.sqlmap.engine.mapping.sql.Sql;
-import com.ibatis.sqlmap.engine.mapping.sql.stat.StaticSql;
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.*;
+import java.util.concurrent.*;
 
 /**
  * {@link CobarSqlMapClientTemplate} is an extension to spring's default
@@ -113,21 +98,23 @@ import com.ibatis.sqlmap.engine.mapping.sql.stat.StaticSql;
  * bound to thread local before. If we process CUD in concurrency, the contract
  * between spring's transaction manager and data access code can't be
  * guaranteed.<br>
- * 
+ *
  * @author fujohnwang
- * @since 1.0
  * @see MultipleDataSourcesTransactionManager for transaction management
- *      alternative.
+ * alternative.
+ * @since 1.0
  */
 public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements DisposableBean {
-    private transient Logger                     logger                          = LoggerFactory
-                                                                                         .getLogger(CobarSqlMapClientTemplate.class);
+    private transient Logger logger = LoggerFactory
+            .getLogger(CobarSqlMapClientTemplate.class);
 
-    private static final String                  DEFAULT_DATASOURCE_IDENTITY     = "_CobarSqlMapClientTemplate_default_data_source_name";
+    private static final String DEFAULT_DATASOURCE_IDENTITY = "_CobarSqlMapClientTemplate_default_data_source_name";
 
-    private String                               defaultDataSourceName           = DEFAULT_DATASOURCE_IDENTITY;
+    private String defaultDataSourceName = DEFAULT_DATASOURCE_IDENTITY;
 
-    private List<ExecutorService>                internalExecutorServiceRegistry = new ArrayList<ExecutorService>();
+    private List<ExecutorService> internalExecutorServiceRegistry = new ArrayList<ExecutorService>();
+
+    private String statementname;
     /**
      * if we want to access multiple database partitions, we need a collection
      * of data source dependencies.<br> {@link ICobarDataSourceService} is a
@@ -137,7 +124,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
      * If a router is injected, a dataSourceLocator dependency should be
      * injected too. <br>
      */
-    private ICobarDataSourceService              cobarDataSourceService;
+    private ICobarDataSourceService cobarDataSourceService;
 
     /**
      * To enable database partitions access, an {@link ICobarRouter} is a must
@@ -145,15 +132,17 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
      * if no router is found, the CobarSqlMapClientTemplate will act with
      * behaviors like its parent, the SqlMapClientTemplate.
      */
-    private ICobarRouter<IBatisRoutingFact>      router;
+    private ICobarRouter<IBatisRoutingFact> router;
+
+    private ICobarSeconder seconder;
 
     /**
      * if you want to do SQL auditing, inject an {@link ISqlAuditor} for use.<br>
      * a sibling ExecutorService would be prefered too, which will be used to
      * execute {@link ISqlAuditor} asynchronously.
      */
-    private ISqlAuditor                          sqlAuditor;
-    private ExecutorService                      sqlAuditorExecutor;
+    private ISqlAuditor sqlAuditor;
+    private ExecutorService sqlAuditorExecutor;
 
     /**
      * setup ExecutorService for data access requests on each data sources.<br>
@@ -161,21 +150,21 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
      * is the ExecutorService that will be used to execute query requests on the
      * key's data source.
      */
-    private Map<String, ExecutorService>         dataSourceSpecificExecutors     = new HashMap<String, ExecutorService>();
+    private Map<String, ExecutorService> dataSourceSpecificExecutors = new HashMap<String, ExecutorService>();
 
-    private IConcurrentRequestProcessor          concurrentRequestProcessor;
+    private IConcurrentRequestProcessor concurrentRequestProcessor;
 
     /**
      * timeout threshold to indicate how long the concurrent data access request
      * should time out.<br>
      * time unit in milliseconds.<br>
      */
-    private int                                  defaultQueryTimeout             = 100;
+    private int defaultQueryTimeout = 100;
     /**
      * indicator to indicate whether to log/profile long-time-running SQL
      */
-    private boolean                              profileLongTimeRunningSql       = false;
-    private long                                 longTimeRunningSqlIntervalThreshold;
+    private boolean profileLongTimeRunningSql = false;
+    private long longTimeRunningSqlIntervalThreshold;
 
     /**
      * In fact, application can do data-merging in their application code after
@@ -184,7 +173,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
      * provide a relationship mapping between the sql action and the merging
      * logic provider.
      */
-    private Map<String, IMerger<Object, Object>> mergers                         = new HashMap<String, IMerger<Object, Object>>();
+    private Map<String, IMerger<Object, Object>> mergers = new HashMap<String, IMerger<Object, Object>>();
 
     /**
      * NOTE: don't use this method for distributed data access.<br>
@@ -273,7 +262,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                     logger
                             .warn(
                                     "SQL Statement [{}] with parameter object [{}] ran out of the normal time range, it consumed [{}] milliseconds.",
-                                    new Object[] { statementName, parameterObject, interval });
+                                    new Object[]{statementName, parameterObject, interval});
                 }
             }
         }
@@ -286,22 +275,22 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
 
     /**
      * We support insert in 3 ways here:<br>
-     * 
+     * <p/>
      * <pre>
      *      1- if no partitioning requirement is found:
      *          the insert will be delegated to the default insert behavior of {@link SqlMapClientTemplate};
      *      2- if partitioning support is enabled and 'parameterObject' is NOT a type of collection:
-     *          we will search for routing rules against it and execute insertion as per the rule if found, 
+     *          we will search for routing rules against it and execute insertion as per the rule if found,
      *          if no rule is found, the default data source will be used.
      *      3- if partitioning support is enabled and 'parameterObject' is a type of {@link BatchInsertTask}:
      *           this is a specific solution, mainly aimed for "insert into ..values(), (), ()" style insertion.
-     *           In this situation, we will regroup the entities in the original collection into several sub-collections as per routing rules, 
+     *           In this situation, we will regroup the entities in the original collection into several sub-collections as per routing rules,
      *           and submit the regrouped sub-collections to their corresponding target data sources.
-     *           One thing to NOTE: in this situation, although we return a object as the result of insert, but it doesn't mean any thing to you, 
-     *           because, "insert into ..values(), (), ()" style SQL doesn't return you a sensible primary key in this way. 
+     *           One thing to NOTE: in this situation, although we return a object as the result of insert, but it doesn't mean any thing to you,
+     *           because, "insert into ..values(), (), ()" style SQL doesn't return you a sensible primary key in this way.
      *           this, function is optional, although we return a list of sub-insert result, but don't guarantee precise semantics.
      * </pre>
-     * 
+     * <p/>
      * we can't just decide the execution branch on the Collection<?> type of
      * the 'parameterObject', because sometimes, maybe the application does want
      * to do insertion as per the parameterObject of its own.<br>
@@ -359,7 +348,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                     logger
                             .warn(
                                     "SQL Statement [{}] with parameter object [{}] ran out of the normal time range, it consumed [{}] milliseconds.",
-                                    new Object[] { statementName, parameterObject, interval });
+                                    new Object[]{statementName, parameterObject, interval});
                 }
             }
         }
@@ -369,7 +358,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
      * we reorder the collection of entities in concurrency and commit them in
      * sequence, because we have to conform to the infrastructure of spring's
      * transaction management layer.
-     * 
+     *
      * @param statementName
      * @param parameterObject
      * @return
@@ -493,6 +482,8 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
         auditSqlIfNecessary(statementName, parameterObject);
 
         long startTimestamp = System.currentTimeMillis();
+        String tableName = null;
+        boolean isNeedSeconder = false;
         try {
             if (isPartitioningBehaviorEnabled()) {
                 SortedMap<String, DataSource> dsMap = lookupDataSourcesByRouter(statementName,
@@ -515,19 +506,35 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                             }
                         };
                     }
-
-                    List<Object> originalResultList = executeInConcurrency(callback, dsMap);
+                    isNeedSeconder = seconder.isNeedSeconder(statementname);
+                    if (StringUtils.isNotBlank(this.getStatementname()) && isNeedSeconder) {
+                        tableName = StringUtils.substringAfter(this.getStatementname(), ".").toUpperCase() + StringSelfUtil.randomA2Z(10).toUpperCase();
+                    }
+                    List<Object> originalResultList = executeInConcurrency(callback, dsMap, isNeedSeconder, tableName);
+                    List<Object> resultList = new ArrayList<Object>();
+                    boolean isHandled = false;
                     if (MapUtils.isNotEmpty(getMergers())
                             && getMergers().containsKey(statementName)) {
                         IMerger<Object, Object> merger = getMergers().get(statementName);
                         if (merger != null) {
-                            return (List) merger.merge(originalResultList);
+                            resultList = (List) merger.merge(originalResultList);
+                            isHandled = true;
+                        }
+                    }
+                    if (!isHandled) {
+                        for (Object item : originalResultList) {
+                            resultList.addAll((List) item);
                         }
                     }
 
-                    List<Object> resultList = new ArrayList<Object>();
-                    for (Object item : originalResultList) {
-                        resultList.addAll((List) item);
+                    if (tableName != null && seconder != null && isNeedSeconder) {
+                        try {
+                            if (resultList != null && !resultList.isEmpty()) {
+                                resultList = seconder.doSecond(tableName, this.getStatementname(), resultList.get(0));
+                            }
+                        } catch (SeconderException e) {
+                            logger.error("cobarSeconder.doSecond have some errors => ", e);
+                        }
                     }
                     return resultList;
                 }
@@ -544,8 +551,11 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                     logger
                             .warn(
                                     "SQL Statement [{}] with parameter object [{}] ran out of the normal time range, it consumed [{}] milliseconds.",
-                                    new Object[] { statementName, parameterObject, interval });
+                                    new Object[]{statementName, parameterObject, interval});
                 }
+            }
+            if (tableName != null && seconder != null && isNeedSeconder) {
+                seconder.drop(tableName);
             }
         }
     }
@@ -625,7 +635,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                     logger
                             .warn(
                                     "SQL Statement [{}] with parameter object [{}] ran out of the normal time range, it consumed [{}] milliseconds.",
-                                    new Object[] { statementName, parameterObject, interval });
+                                    new Object[]{statementName, parameterObject, interval});
                 }
             }
         }
@@ -695,7 +705,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                     logger
                             .warn(
                                     "SQL Statement [{}] with parameter object [{}] ran out of the normal time range, it consumed [{}] milliseconds.",
-                                    new Object[] { statementName, parameterObject, interval });
+                                    new Object[]{statementName, parameterObject, interval});
                 }
             }
         }
@@ -780,7 +790,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                     logger
                             .warn(
                                     "SQL Statement [{}] with parameter object [{}] ran out of the normal time range, it consumed [{}] milliseconds.",
-                                    new Object[] { statementName, parameterObject, interval });
+                                    new Object[]{statementName, parameterObject, interval});
                 }
             }
         }
@@ -837,7 +847,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                     logger
                             .warn(
                                     "SQL Statement [{}] with parameter object [{}] ran out of the normal time range, it consumed [{}] milliseconds.",
-                                    new Object[] { statementName, parameterObject, interval });
+                                    new Object[]{statementName, parameterObject, interval});
                 }
             }
         }
@@ -855,7 +865,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
         if (getRouter() != null && getCobarDataSourceService() != null) {
             RoutingResult routing = getRouter().doRoute(new IBatisRoutingFact(statementName, parameterObject));
             List<String> dsSet = routing.getResourceIdentities();
-            if(parameterObject instanceof FragmentPO){
+            if (parameterObject instanceof FragmentPO) {
                 ((FragmentPO) parameterObject).setFragment(routing.getFragment());
             }
             if (CollectionUtils.isNotEmpty(dsSet)) {
@@ -865,6 +875,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                 }
             }
         }
+        this.setStatementname(statementName);
         return resultMap;
     }
 
@@ -923,9 +934,28 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
     }
 
     public List<Object> executeInConcurrency(SqlMapClientCallback action,
+                                             SortedMap<String, DataSource> dsMap, boolean isNeedSeconder,
+                                             String tableName) {
+        List<ConcurrentRequest> requests = new ArrayList<ConcurrentRequest>();
+        for (Map.Entry<String, DataSource> entry : dsMap.entrySet()) {
+            ConcurrentRequest request = new ConcurrentRequest();
+            request.setAction(action);
+            request.setDataSource(entry.getValue());
+            request.setExecutor(getDataSourceSpecificExecutors().get(entry.getKey()));
+            if (isNeedSeconder) {
+                request.setCobarSeconder(seconder);
+            }
+            request.setTableName(tableName);
+            requests.add(request);
+        }
+
+        List<Object> results = getConcurrentRequestProcessor().process(requests);
+        return results;
+    }
+
+    public List<Object> executeInConcurrency(SqlMapClientCallback action,
                                              SortedMap<String, DataSource> dsMap) {
         List<ConcurrentRequest> requests = new ArrayList<ConcurrentRequest>();
-
         for (Map.Entry<String, DataSource> entry : dsMap.entrySet()) {
             ConcurrentRequest request = new ConcurrentRequest();
             request.setAction(action);
@@ -1101,7 +1131,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
     }
 
     public void setDataSourceSpecificExecutors(
-                                               Map<String, ExecutorService> dataSourceSpecificExecutors) {
+            Map<String, ExecutorService> dataSourceSpecificExecutors) {
         if (MapUtils.isEmpty(dataSourceSpecificExecutors)) {
             return;
         }
@@ -1160,6 +1190,14 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
         return router;
     }
 
+    public ICobarSeconder getSeconder() {
+        return seconder;
+    }
+
+    public void setSeconder(ICobarSeconder seconder) {
+        this.seconder = seconder;
+    }
+
     public void setConcurrentRequestProcessor(IConcurrentRequestProcessor concurrentRequestProcessor) {
         this.concurrentRequestProcessor = concurrentRequestProcessor;
     }
@@ -1194,5 +1232,13 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                 TimeUnit.SECONDS, queueToUse, tf, new ThreadPoolExecutor.CallerRunsPolicy());
 
         return executor;
+    }
+
+    public String getStatementname() {
+        return statementname;
+    }
+
+    public void setStatementname(String statementname) {
+        this.statementname = statementname;
     }
 }
