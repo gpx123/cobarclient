@@ -43,6 +43,7 @@ import com.ibatis.sqlmap.client.event.RowHandler;
 import com.ibatis.sqlmap.engine.impl.SqlMapClientImpl;
 import com.ibatis.sqlmap.engine.mapping.sql.Sql;
 import com.ibatis.sqlmap.engine.mapping.sql.stat.StaticSql;
+import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
@@ -60,6 +61,7 @@ import org.springframework.orm.ibatis.SqlMapClientCallback;
 import org.springframework.orm.ibatis.SqlMapClientTemplate;
 
 import javax.sql.DataSource;
+import java.lang.reflect.InvocationTargetException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
@@ -489,28 +491,56 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                 SortedMap<String, DataSource> dsMap = lookupDataSourcesByRouter(statementName,
                         parameterObject);
                 if (!MapUtils.isEmpty(dsMap)) {
-                    SqlMapClientCallback callback = null;
-                    if (skipResults == null || maxResults == null) {
-                        callback = new SqlMapClientCallback() {
-                            public Object doInSqlMapClient(SqlMapExecutor executor)
-                                    throws SQLException {
-                                return executor.queryForList(statementName, parameterObject);
+                    List<SqlMapClientCallback> callbacks = new ArrayList<SqlMapClientCallback>();
+                    if(parameterObject instanceof FragmentPO && ((FragmentPO) parameterObject).getFragment() == null && ((FragmentPO) parameterObject).getFragmentList() != null){
+                        for(Object fragment : ((FragmentPO) parameterObject).getFragmentList()){
+                            ((FragmentPO) parameterObject).setFragment(fragment);
+                            final Object parameterClone = ((FragmentPO) parameterObject).clone();
+                            SqlMapClientCallback callback = null;
+                            if (skipResults == null || maxResults == null) {
+                                callback = new SqlMapClientCallback() {
+                                    public Object doInSqlMapClient(SqlMapExecutor executor)
+                                            throws SQLException {
+                                        return executor.queryForList(statementName, parameterClone);
+                                    }
+                                };
+                            } else {
+                                callback = new SqlMapClientCallback() {
+                                    public Object doInSqlMapClient(SqlMapExecutor executor)
+                                            throws SQLException {
+                                        return executor.queryForList(statementName, parameterClone,
+                                                skipResults, maxResults);
+                                    }
+                                };
                             }
-                        };
-                    } else {
-                        callback = new SqlMapClientCallback() {
-                            public Object doInSqlMapClient(SqlMapExecutor executor)
-                                    throws SQLException {
-                                return executor.queryForList(statementName, parameterObject,
-                                        skipResults, maxResults);
-                            }
-                        };
+                            callbacks.add(callback);
+                        }
+                        ((FragmentPO) parameterObject).setFragment(null);
+                    }else{
+                        SqlMapClientCallback callback = null;
+                        if (skipResults == null || maxResults == null) {
+                            callback = new SqlMapClientCallback() {
+                                public Object doInSqlMapClient(SqlMapExecutor executor)
+                                        throws SQLException {
+                                    return executor.queryForList(statementName, parameterObject);
+                                }
+                            };
+                        } else {
+                            callback = new SqlMapClientCallback() {
+                                public Object doInSqlMapClient(SqlMapExecutor executor)
+                                        throws SQLException {
+                                    return executor.queryForList(statementName, parameterObject,
+                                            skipResults, maxResults);
+                                }
+                            };
+                        }
+                        callbacks.add(callback);
                     }
                     isNeedSeconder = seconder.isNeedSeconder(statementname);
                     if (StringUtils.isNotBlank(this.getStatementname()) && isNeedSeconder) {
                         tableName = StringUtils.substringAfter(this.getStatementname(), ".").toUpperCase() + StringSelfUtil.randomA2Z(10).toUpperCase();
                     }
-                    List<Object> originalResultList = executeInConcurrency(callback, dsMap, isNeedSeconder, tableName);
+                    List<Object> originalResultList = executeInConcurrency(callbacks, dsMap, isNeedSeconder, tableName);
                     List<Object> resultList = new ArrayList<Object>();
                     boolean isHandled = false;
                     if (MapUtils.isNotEmpty(getMergers())
@@ -544,6 +574,9 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
             } else {
                 return super.queryForList(statementName, parameterObject, skipResults, maxResults);
             }
+        }  catch (CloneNotSupportedException e) {
+            logger.error("clone error=>",e);
+            return new ArrayList();
         } finally {
             if (isProfileLongTimeRunningSql()) {
                 long interval = System.currentTimeMillis() - startTimestamp;
@@ -931,6 +964,28 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
         } finally {
             session.close();
         }
+    }
+
+    public List<Object> executeInConcurrency(List<SqlMapClientCallback> actions,
+                                             SortedMap<String, DataSource> dsMap, boolean isNeedSeconder,
+                                             String tableName) {
+        List<ConcurrentRequest> requests = new ArrayList<ConcurrentRequest>();
+        for(SqlMapClientCallback action : actions){
+            for (Map.Entry<String, DataSource> entry : dsMap.entrySet()) {
+                ConcurrentRequest request = new ConcurrentRequest();
+                request.setAction(action);
+                request.setDataSource(entry.getValue());
+                request.setExecutor(getDataSourceSpecificExecutors().get(entry.getKey()));
+                if (isNeedSeconder) {
+                    request.setCobarSeconder(seconder);
+                }
+                request.setTableName(tableName);
+                requests.add(request);
+            }
+        }
+
+        List<Object> results = getConcurrentRequestProcessor().process(requests);
+        return results;
     }
 
     public List<Object> executeInConcurrency(SqlMapClientCallback action,

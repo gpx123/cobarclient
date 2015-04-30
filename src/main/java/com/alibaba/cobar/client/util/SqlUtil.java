@@ -55,7 +55,7 @@ public class SqlUtil {
         } else if (cls.equals("java.util.DateTime")) {
             return "TIMESTAMP";
         } else {
-            throw new Exception("cls canot convert to mysql type! ");
+            throw new Exception("cls=>"+cls+" canot convert to mysql type! ");
         }
     }
 

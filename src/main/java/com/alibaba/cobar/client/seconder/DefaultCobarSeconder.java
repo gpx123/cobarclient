@@ -3,12 +3,8 @@ package com.alibaba.cobar.client.seconder;
 import com.alibaba.cobar.client.seconder.vo.ActionSecondingConf;
 import com.alibaba.cobar.client.util.DerbyUtil;
 import com.alibaba.cobar.client.util.SqlUtil;
-import com.ibatis.sqlmap.engine.mapping.sql.Sql;
-import org.apache.commons.beanutils.BeanUtils;
-import org.apache.commons.beanutils.DynaBean;
 import org.apache.commons.beanutils.PropertyUtils;
 
-import java.sql.ResultSet;
 import java.util.*;
 
 /**
@@ -23,7 +19,7 @@ public class DefaultCobarSeconder implements ICobarSeconder {
 
     private List<Set<ActionSecondingConf>> secondingSequences = new ArrayList<Set<ActionSecondingConf>>();
 
-    private synchronized  void create(String tableName, Object res) throws Exception {
+    private synchronized void create(String tableName, Object res) throws Exception {
         if (DerbyUtil.getInstance().existTable(tableName)) {
             return;
         }
@@ -37,9 +33,9 @@ public class DefaultCobarSeconder implements ICobarSeconder {
             resMap = (Map) bean;
         }
         for (Object key : resMap.keySet()) {
-            if(!key.equals("class")){
-                Object value = resMap.get(key);
-                propertyMap.put(String.valueOf(key), SqlUtil.convert2MysqlType(value.getClass().getName()));
+            String propertyTypeName = PropertyUtils.getPropertyType(bean, String.valueOf(key)).getName();
+            if (!key.equals("class") && !propertyTypeName.equals("java.util.List") && !propertyTypeName.equals("java.util.Map") && !propertyTypeName.equals("java.lang.Object")) {
+                propertyMap.put(String.valueOf(key), SqlUtil.convert2MysqlType(propertyTypeName));
             }
         }
         //-- 构造create table sql
@@ -65,21 +61,27 @@ public class DefaultCobarSeconder implements ICobarSeconder {
         } else {
             resMap = (Map) bean;
         }
-        StringBuilder sql = new StringBuilder("INSERT INTO " + tableName + " VALUES (");
-        int maxLen = resMap.size();
-        if(resMap.containsKey("class")){
-            maxLen -- ;
-        }
-        for(Object key : resMap.keySet()){
-            if(!"class".equals(key)){
-                maxLen--;
-                sql.append(SqlUtil.convert2MysqlValue(resMap.get(key)));
-                if (maxLen != 0) {
-                    sql.append(",");
-                }
+        StringBuilder sql = new StringBuilder("INSERT INTO " + tableName );
+        Map<String , String> sqlMap = new HashMap<String, String>();
+        for (Object key : resMap.keySet()) {
+            String propertyTypeName = PropertyUtils.getPropertyType(bean, String.valueOf(key)).getName();
+            if (!"class".equals(key) && !propertyTypeName.equals("java.util.List") && !propertyTypeName.equals("java.util.Map") && !propertyTypeName.equals("java.lang.Object")) {
+                sqlMap.put(String.valueOf(key), SqlUtil.convert2MysqlValue(resMap.get(key)));
             }
         }
-        sql.append(")");
+        String fields = " (";
+        String values = " VALUES (";
+        Integer maxLen = sqlMap.size();
+        for(String field : sqlMap.keySet()){
+            fields += field;
+            values += sqlMap.get(field);
+            if(--maxLen != 0){
+                fields += ",";
+                values += ",";
+            }
+        }
+        sql.append(fields + ")");
+        sql.append(values + ")");
         //-- 执行derby命令，新建表
         DerbyUtil.getInstance().execute(sql.toString());
     }
@@ -120,16 +122,16 @@ public class DefaultCobarSeconder implements ICobarSeconder {
         return null;
     }
 
-    public List<Object> doSecond(String tableName, String statementName,Object res) throws SeconderException {
+    public List<Object> doSecond(String tableName, String statementName, Object res) throws SeconderException {
         try {
             ActionSecondingConf seconding = getSecondingByNamespace(statementName);
             if (seconding != null) {
                 //--替换$tableName$
-                String sql = seconding.getSql().replace("$tableName$",tableName);
+                String sql = seconding.getSql().replace("$tableName$", tableName);
                 //--执行sql
-                return DerbyUtil.getInstance().executeQuery(sql,res);
+                return DerbyUtil.getInstance().executeQuery(sql, res);
             }
-        } catch (Exception e){
+        } catch (Exception e) {
             throw new SeconderException("DefaultCobarSeconder.doSecond errors =>", e);
         }
         return null;
@@ -137,7 +139,10 @@ public class DefaultCobarSeconder implements ICobarSeconder {
 
     public void drop(String tableName) throws SeconderException {
         //-- 执行derby命令，新建表
-        DerbyUtil.getInstance().execute("DROP TABLE "+ tableName);
+        if (!DerbyUtil.getInstance().existTable(tableName)) {
+            return;
+        }
+        DerbyUtil.getInstance().execute("DROP TABLE " + tableName);
     }
 
     public boolean isNeedSeconder(String statementName) {
