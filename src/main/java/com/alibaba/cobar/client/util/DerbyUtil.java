@@ -30,7 +30,7 @@ public class DerbyUtil {
     }
 
     private static final String driverName = "org.apache.derby.jdbc.EmbeddedDriver";
-    private static final String url = "jdbc:derby:memory1;create=true";
+    private static final String url = "jdbc:derby:testmemory;create=true";
 
     private final Log log = LogFactory.getLog(getClass());
 

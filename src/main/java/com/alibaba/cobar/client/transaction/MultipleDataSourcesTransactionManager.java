@@ -137,7 +137,7 @@ AbstractPlatformTransactionManager implements InitializingBean {
 			} catch (TransactionException e) {
 				// Log exception and try to complete rollback
 				lastException = e;
-				logger.error("error occured when rolling back the transaction. \n{}",e);
+				logger.error("error occured when rolling back the transaction. \n",e);
 			}
 		}
 		

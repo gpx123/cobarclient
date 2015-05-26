@@ -8,6 +8,7 @@ import org.apache.commons.beanutils.ResultSetDynaClass;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -30,17 +31,17 @@ public class SqlUtil {
             return "VARCHAR(20)";
         } else if (cls.equals("java.lang.byte[]")) {
             return "BLOB";
-        } else if (cls.equals("java.lang.Integer")) {
+        } else if (cls.equals("java.lang.Integer") || cls.equals("int")) {
             return "INT";
-        } else if (cls.equals("java.lang.Long")) {
+        } else if (cls.equals("java.lang.Long") || cls.equals("long")) {
             return "BIGINT";
-        } else if (cls.equals("java.lang.Boolean")) {
+        } else if (cls.equals("java.lang.Boolean") || cls.equals("boolean")) {
             return "TINYINT";
         } else if (cls.equals("java.math.BigInteger")) {
             return "BIGINT";
-        } else if (cls.equals("java.lang.Float")) {
+        } else if (cls.equals("java.lang.Float") || cls.equals("float")) {
             return "FLOAT";
-        } else if (cls.equals("java.lang.Double")) {
+        } else if (cls.equals("java.lang.Double") || cls.equals("double")) {
             return "DOUBLE";
         } else if (cls.equals("java.math.BigDecimal")) {
             return "DECIMAL";
@@ -55,7 +56,7 @@ public class SqlUtil {
         } else if (cls.equals("java.util.DateTime")) {
             return "TIMESTAMP";
         } else {
-            throw new Exception("cls=>"+cls+" canot convert to mysql type! ");
+            throw new Exception("cls=>" + cls + " canot convert to mysql type! ");
         }
     }
 
@@ -73,19 +74,30 @@ public class SqlUtil {
 
     public static List<Object> getObject(ResultSet rs, Object obj) throws Exception {
         ArrayList lists = new ArrayList();
-        ResultSetDynaClass rsdc = new ResultSetDynaClass(rs);
-        Iterator rows = rsdc.iterator();
-        while (rows.hasNext()) {
-            DynaBean row = (DynaBean) rows.next();
-            obj = obj.getClass().newInstance();
-            if(obj instanceof Map){
-                obj = PropertyUtils.describe(row);
+        List<Map> resultMap = convertList(rs);
+        for(Object map : resultMap){
+            if (obj instanceof Map) {
+                lists.add(map);
             }else{
-                BeanUtils.copyProperties(obj, row);
+                BeanUtils.copyProperties(obj, map);
+                lists.add(obj);
             }
-            lists.add(obj);
         }
         return lists;
-
     }
+
+    private static List convertList(ResultSet rs) throws Exception {
+        List list = new ArrayList();
+        ResultSetMetaData md = rs.getMetaData();
+        int columnCount = md.getColumnCount();
+        while (rs.next()) {
+            Map rowData = new HashMap();
+            for (int i = 1; i <= columnCount; i++) {
+                rowData.put(md.getColumnName(i).toLowerCase(), rs.getObject(i));
+            }
+            list.add(rowData);
+        }
+        return list;
+    }
+
 }

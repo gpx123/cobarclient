@@ -20,13 +20,12 @@ import com.alibaba.cobar.client.router.support.IBatisRoutingFact;
 import com.alibaba.cobar.client.router.support.RoutingResult;
 import com.alibaba.cobar.client.support.LRUMap;
 import com.alibaba.cobar.client.support.utils.CollectionUtils;
-import org.mvel2.MVEL;
-import org.mvel2.integration.VariableResolverFactory;
-import org.mvel2.integration.impl.MapVariableResolverFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
 /**
  * CobarInternalRouter is the default router that will be used in cobar client,
@@ -85,7 +84,7 @@ public class CobarClientInternalRouter implements ICobarRouter<IBatisRoutingFact
             synchronized (localCache) {
                 if (localCache.containsKey(routingFact)) {
                     RoutingResult result = (RoutingResult) localCache.get(routingFact);
-                    logger.info("return routing result:{} from cache for fact:{}", result, routingFact);
+                    logger.info("return routing result:" + result + " from cache for fact:" + routingFact);
                     return result;
                 }
             }
@@ -99,17 +98,19 @@ public class CobarClientInternalRouter implements ICobarRouter<IBatisRoutingFact
             for (Set<IRoutingRule<IBatisRoutingFact, List<String>>> ruleSet : getRuleSequences()) {
                 ruleToUse = searchMatchedRuleAgainst(ruleSet, routingFact);
                 if (ruleToUse != null) {
-                    result.setFragment(ruleToUse.fragment(routingFact));
+                    if (ruleToUse.fragment(routingFact) != null) {
+                        result.setFragment(ruleToUse.fragment(routingFact));
+                    }
                     break;
                 }
             }
         }
 
         if (ruleToUse != null) {
-            logger.info("matched with rule:{} with fact:{}", ruleToUse, routingFact);
+            logger.info("matched with rule:" + ruleToUse + " with fact:" + routingFact);
             result.getResourceIdentities().addAll(ruleToUse.action());
         } else {
-            logger.info("No matched rule found for routing fact:{}", routingFact);
+            logger.info("No matched rule found for routing fact:"+routingFact);
         }
 
         if (enableCache) {

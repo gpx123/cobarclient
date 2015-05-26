@@ -43,7 +43,6 @@ import com.ibatis.sqlmap.client.event.RowHandler;
 import com.ibatis.sqlmap.engine.impl.SqlMapClientImpl;
 import com.ibatis.sqlmap.engine.mapping.sql.Sql;
 import com.ibatis.sqlmap.engine.mapping.sql.stat.StaticSql;
-import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.slf4j.Logger;
@@ -61,7 +60,6 @@ import org.springframework.orm.ibatis.SqlMapClientCallback;
 import org.springframework.orm.ibatis.SqlMapClientTemplate;
 
 import javax.sql.DataSource;
-import java.lang.reflect.InvocationTargetException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
@@ -263,8 +261,8 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                 if (interval > getLongTimeRunningSqlIntervalThreshold()) {
                     logger
                             .warn(
-                                    "SQL Statement [{}] with parameter object [{}] ran out of the normal time range, it consumed [{}] milliseconds.",
-                                    new Object[]{statementName, parameterObject, interval});
+                                    "SQL Statement [" + statementName + "] with parameter object [" + parameterObject + "] ran out of the normal time range, it consumed [" + interval + "] milliseconds."
+                            );
                 }
             }
         }
@@ -316,8 +314,8 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                 if (parameterObject != null && parameterObject instanceof BatchInsertTask) {
                     // map collection into mapping of data source and sub collection of entities
                     logger.info(
-                            "start to prepare batch insert operation with parameter type of:{}.",
-                            parameterObject.getClass());
+                            "start to prepare batch insert operation with parameter type of:" +
+                                    parameterObject.getClass());
 
                     return batchInsertAfterReordering(statementName, parameterObject);
 
@@ -349,8 +347,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                 if (interval > getLongTimeRunningSqlIntervalThreshold()) {
                     logger
                             .warn(
-                                    "SQL Statement [{}] with parameter object [{}] ran out of the normal time range, it consumed [{}] milliseconds.",
-                                    new Object[]{statementName, parameterObject, interval});
+                                    "SQL Statement [" + statementName + "] with parameter object [" + parameterObject + "] ran out of the normal time range, it consumed [" + interval + "] milliseconds.");
                 }
             }
         }
@@ -393,8 +390,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                             if (MapUtils.isEmpty(dsMap)) {
                                 logger
                                         .info(
-                                                "can't find routing rule for {} with parameter {}, so use default data source for it.",
-                                                statementName, entity);
+                                                "can't find routing rule for " + statementName + " with parameter " + entity + ", so use default data source for it.");
                                 mrbase.emit(getDefaultDataSourceName(), entity);
                             } else {
                                 if (dsMap.size() > 1) {
@@ -492,9 +488,9 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                         parameterObject);
                 if (!MapUtils.isEmpty(dsMap)) {
                     List<SqlMapClientCallback> callbacks = new ArrayList<SqlMapClientCallback>();
-                    if(parameterObject instanceof FragmentPO && ((FragmentPO) parameterObject).getFragment() == null && ((FragmentPO) parameterObject).getFragmentList() != null){
-                        for(Object fragment : ((FragmentPO) parameterObject).getFragmentList()){
-                            ((FragmentPO) parameterObject).setFragment(fragment);
+                    if (parameterObject instanceof FragmentPO && ((FragmentPO) parameterObject).getShard() == null && ((FragmentPO) parameterObject).getShardList() != null) {
+                        for (Object fragment : ((FragmentPO) parameterObject).getShardList()) {
+                            ((FragmentPO) parameterObject).setShard(fragment);
                             final Object parameterClone = ((FragmentPO) parameterObject).clone();
                             SqlMapClientCallback callback = null;
                             if (skipResults == null || maxResults == null) {
@@ -515,8 +511,8 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                             }
                             callbacks.add(callback);
                         }
-                        ((FragmentPO) parameterObject).setFragment(null);
-                    }else{
+                        ((FragmentPO) parameterObject).setShard(null);
+                    } else {
                         SqlMapClientCallback callback = null;
                         if (skipResults == null || maxResults == null) {
                             callback = new SqlMapClientCallback() {
@@ -574,8 +570,8 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
             } else {
                 return super.queryForList(statementName, parameterObject, skipResults, maxResults);
             }
-        }  catch (CloneNotSupportedException e) {
-            logger.error("clone error=>",e);
+        } catch (CloneNotSupportedException e) {
+            logger.error("clone error=>", e);
             return new ArrayList();
         } finally {
             if (isProfileLongTimeRunningSql()) {
@@ -583,8 +579,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                 if (interval > getLongTimeRunningSqlIntervalThreshold()) {
                     logger
                             .warn(
-                                    "SQL Statement [{}] with parameter object [{}] ran out of the normal time range, it consumed [{}] milliseconds.",
-                                    new Object[]{statementName, parameterObject, interval});
+                                    "SQL Statement [" + statementName + "] with parameter object [" + parameterObject + "] ran out of the normal time range, it consumed [" + interval + "] milliseconds.");
                 }
             }
             if (tableName != null && seconder != null && isNeedSeconder) {
@@ -667,8 +662,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                 if (interval > getLongTimeRunningSqlIntervalThreshold()) {
                     logger
                             .warn(
-                                    "SQL Statement [{}] with parameter object [{}] ran out of the normal time range, it consumed [{}] milliseconds.",
-                                    new Object[]{statementName, parameterObject, interval});
+                                    "SQL Statement [" + statementName + "] with parameter object [" + parameterObject + "] ran out of the normal time range, it consumed [" + interval + "] milliseconds.");
                 }
             }
         }
@@ -737,8 +731,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                 if (interval > getLongTimeRunningSqlIntervalThreshold()) {
                     logger
                             .warn(
-                                    "SQL Statement [{}] with parameter object [{}] ran out of the normal time range, it consumed [{}] milliseconds.",
-                                    new Object[]{statementName, parameterObject, interval});
+                                    "SQL Statement [" + statementName + "] with parameter object [" + parameterObject + "] ran out of the normal time range, it consumed [" + interval + "] milliseconds.");
                 }
             }
         }
@@ -822,8 +815,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                 if (interval > getLongTimeRunningSqlIntervalThreshold()) {
                     logger
                             .warn(
-                                    "SQL Statement [{}] with parameter object [{}] ran out of the normal time range, it consumed [{}] milliseconds.",
-                                    new Object[]{statementName, parameterObject, interval});
+                                    "SQL Statement [" + statementName + "] with parameter object [" + parameterObject + "] ran out of the normal time range, it consumed [" + interval + "] milliseconds.");
                 }
             }
         }
@@ -879,8 +871,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                 if (interval > getLongTimeRunningSqlIntervalThreshold()) {
                     logger
                             .warn(
-                                    "SQL Statement [{}] with parameter object [{}] ran out of the normal time range, it consumed [{}] milliseconds.",
-                                    new Object[]{statementName, parameterObject, interval});
+                                    "SQL Statement [" + statementName + "] with parameter object [" + parameterObject + "] ran out of the normal time range, it consumed [" + interval + "] milliseconds.");
                 }
             }
         }
@@ -899,7 +890,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
             RoutingResult routing = getRouter().doRoute(new IBatisRoutingFact(statementName, parameterObject));
             List<String> dsSet = routing.getResourceIdentities();
             if (parameterObject instanceof FragmentPO) {
-                ((FragmentPO) parameterObject).setFragment(routing.getFragment());
+                ((FragmentPO) parameterObject).setShard(routing.getFragment());
             }
             if (CollectionUtils.isNotEmpty(dsSet)) {
                 Collections.sort(dsSet);
@@ -970,7 +961,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                                              SortedMap<String, DataSource> dsMap, boolean isNeedSeconder,
                                              String tableName) {
         List<ConcurrentRequest> requests = new ArrayList<ConcurrentRequest>();
-        for(SqlMapClientCallback action : actions){
+        for (SqlMapClientCallback action : actions) {
             for (Map.Entry<String, DataSource> entry : dsMap.entrySet()) {
                 ConcurrentRequest request = new ConcurrentRequest();
                 request.setAction(action);
@@ -1049,7 +1040,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                         executor.awaitTermination(5, TimeUnit.MINUTES);
                         executor = null;
                     } catch (InterruptedException e) {
-                        logger.warn("interrupted when shuting down the query executor:\n{}", e);
+                        logger.warn("interrupted when shuting down the query executor:\n" + e);
                     }
                 }
             }
@@ -1085,7 +1076,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                         sqlAuditorExecutor.shutdown();
                         sqlAuditorExecutor.awaitTermination(5, TimeUnit.MINUTES);
                     } catch (InterruptedException e) {
-                        logger.warn("interrupted when shuting down the query executor:\n{}", e);
+                        logger.warn("interrupted when shuting down the query executor:\n", e);
                     }
                 }
             });
@@ -1134,7 +1125,7 @@ public class CobarSqlMapClientTemplate extends SqlMapClientTemplate implements D
                     executor.shutdown();
                     executor.awaitTermination(5, TimeUnit.MINUTES);
                 } catch (InterruptedException e) {
-                    logger.warn("interrupted when shuting down the query executor:\n{}", e);
+                    logger.warn("interrupted when shuting down the query executor:\n" + e);
                 }
             }
         });

@@ -13,11 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- package com.alibaba.cobar.client.datasources.ha;
-
-import java.sql.SQLException;
-
-import javax.sql.DataSource;
+package com.alibaba.cobar.client.datasources.ha;
 
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
@@ -30,13 +26,16 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.support.SQLStateSQLExceptionTranslator;
 
+import javax.sql.DataSource;
+import java.sql.SQLException;
+
 public class PassiveEventHotSwappableAdvice implements MethodInterceptor, InitializingBean {
-    private final transient Logger         logger              = LoggerFactory
-                                                                       .getLogger(PassiveEventHotSwappableAdvice.class);
+    private final transient Logger logger = LoggerFactory
+            .getLogger(PassiveEventHotSwappableAdvice.class);
 
-    private static final Integer           DEFAULT_RETRY_TIMES = 3;
+    private static final Integer DEFAULT_RETRY_TIMES = 3;
 
-    private SQLStateSQLExceptionTranslator sqlExTranslator     = new SQLStateSQLExceptionTranslator();
+    private SQLStateSQLExceptionTranslator sqlExTranslator = new SQLStateSQLExceptionTranslator();
 
     /**
      * threshold to indicate until how many times we will stop hot swap between
@@ -44,7 +43,7 @@ public class PassiveEventHotSwappableAdvice implements MethodInterceptor, Initia
      * default behavior is always swap(with threshold value to be
      * Integer.MAX_VALUE).
      */
-    private Integer                        swapTimesThreshold  = Integer.MAX_VALUE;
+    private Integer swapTimesThreshold = Integer.MAX_VALUE;
 
     /**
      * In fact, this is not necessary since DataSource implementations like C3P0
@@ -52,17 +51,17 @@ public class PassiveEventHotSwappableAdvice implements MethodInterceptor, Initia
      * you configure the underlying data source implementation instances, they
      * will do this job for you.
      */
-    private Integer                        retryTimes          = DEFAULT_RETRY_TIMES;
+    private Integer retryTimes = DEFAULT_RETRY_TIMES;
     /**
      * time unit in milliseconds
      */
-    private long                           retryInterval       = 1000;
+    private long retryInterval = 1000;
 
-    private String                         detectingSql        = "SELECT 1";
+    private String detectingSql = "SELECT 1";
 
-    private HotSwappableTargetSource       targetSource;
-    private DataSource                     mainDataSource;
-    private DataSource                     standbyDataSource;
+    private HotSwappableTargetSource targetSource;
+    private DataSource mainDataSource;
+    private DataSource standbyDataSource;
 
     public Object invoke(MethodInvocation invocation) throws Throwable {
         if (!StringUtils.equalsIgnoreCase(invocation.getMethod().getName(), "getConnection")) {
@@ -78,10 +77,10 @@ public class PassiveEventHotSwappableAdvice implements MethodInterceptor, Initia
                 // we use SQLStateSQLExceptionTranslator to translate SQLExceptions , but it doesn't mean it will work as we expected, 
                 // so maybe more scope should be covered. we will check out later with runtime data statistics.
                 DataAccessException dae = sqlExTranslator.translate(
-                        "translate to check whether it's a resource failure exception", null,
+                        "translate to check whether its a resource failure exception", null,
                         (SQLException) t);
                 if (dae instanceof DataAccessResourceFailureException) {
-                    logger.warn("failed to get Connection from data source with exception:\n{}", t);
+                    logger.warn("failed to get Connection from data source with exception:\n" + t);
                     doSwap();
                     return invocation.getMethod().invoke(targetSource.getTarget(),
                             invocation.getArguments());

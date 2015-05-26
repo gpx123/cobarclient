@@ -56,15 +56,14 @@ public class IBatisNamespaceShardingRule extends AbstractIBatisOrientedRule {
             } catch (Throwable t) {
                 logger
                         .info(
-                                "failed to evaluate attribute expression:'{}' with context object:'{}'\n{}",
-                                new Object[]{getAttributePattern(), routingFact.getArgument(), t});
+                                "failed to evaluate attribute expression:'" + getAttributePattern() + "' with context object:'" + routingFact.getArgument() + "'\n" + t);
             }
         }
         return false;
     }
 
     public Object fragment(IBatisRoutingFact routingFact) {
-        if(StringUtils.isEmpty(this.getFragmentPattern())){
+        if (StringUtils.isEmpty(this.getFragmentPattern())) {
             return null;
         }
         Validate.notNull(routingFact);
@@ -77,8 +76,7 @@ public class IBatisNamespaceShardingRule extends AbstractIBatisOrientedRule {
         } catch (Throwable t) {
             logger
                     .info(
-                            "failed to evaluate attribute expression:'{}' with context object:'{}'\n{}",
-                            new Object[]{getAttributePattern(), routingFact.getArgument(), t});
+                            "failed to evaluate attribute expression:'" + getAttributePattern() + "' with context object:'" + routingFact.getArgument() + "'\n" + t);
         }
         return null;
     }

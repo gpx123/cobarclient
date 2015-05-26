@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- package com.alibaba.cobar.client.audit;
+package com.alibaba.cobar.client.audit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
 /**
  * A simple {@link ISqlAuditor} implementation that will just simple print the
  * SQL and its parameter.<br>
- * 
+ *
  * @author fujohnwang
  */
 public class SimpleSqlAuditor implements ISqlAuditor {
@@ -29,7 +29,7 @@ public class SimpleSqlAuditor implements ISqlAuditor {
     private transient final Logger logger = LoggerFactory.getLogger(SimpleSqlAuditor.class);
 
     public void audit(String id, String sql, Object sqlContext) {
-        logger.info("SQL id:{} SQL:{} - Parameter:{}", new Object[] { id, sql, sqlContext });
+        logger.info("SQL id:" + id + " SQL:" + sql + " - Parameter:" + sqlContext);
     }
 
 }
